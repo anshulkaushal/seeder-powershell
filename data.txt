@@ -1,0 +1,109 @@
+Overview
+Initial Document
+This document aims to provide a detailed outline of feature requirements for the transition of
+Azure Automation workloads (namely those running on Hybrid Workers) to GitHub
+Actions.
+Background/Context
+Current Architecture
+ACC-VMAutomation-Prod
+Within Cloud Ops, a range of environment automation tasks have been handled by our 
+Automation Account. This account has been configured with a
+single Hybrid Worker group - containing two Azure VMs (
+AZUWHW0002
+/
+AZUWHW1002
+):
+These Hybrid Workers are both configured with the Hybrid Worker VM extension, which
+allow them to effectively act as “runners” for Automation Account jobs targeting the Hybrid
+Worker Group. 
+This enables capabilities such as allowing for workloads to interact with other networked
+resources - cloud or otherwise.
+Workloads
+The Cloud Operations team currently holds the largest stake in Azure Automation Accounts
+from a workload perspective, while being the only team (excluding Tools & Automation) to
+take advantage of the Hybrid Workers.
+A few other Automation Accounts exist. However, these contain far fewer runbooks - and do
+not take advantage of our Hybrid Workers.
+Issues/Risks
+CAF Compliance
+Recent issues have been remediated regarding the use of HW-bound tasks for multi
+subscription workloads, such as those within our mg-ACC/CAF environment(s). An example
+of this would be Azure Contexts when using PowerShell. When running under a single
+subscription (both from a workload, and an RBAC perspective for the principal executing
+workloads on Azure), additional code is required across the board to ensure switching
+between subscriptions doesnʼt linger from one job to another.
+While we have remediated this on a script-by-script basis, this adds additional (repeated)
+effort to development of these scripts - and posed an additional risk to other jobs not
+developed to cater for lingering contexts.
+Runtime Consistency
+Keeping the state of both VMs consistent has been a challenge in the past. Some scripts rely
+on local resources stored on the Hybrid Workers. Should there be any inconsistencies
+between these local resources, issues can arise where runbook executions are not
+consistent between both systems.
+Environment Maturity
+The Azure Hybrid workers have existed in some capacity for quite a long time (the ACC
+VMAutomation-Prod account has existed for nearly 9 years - for which they have always
+been associated with a Hybrid Worker group).
+Within that time, ACC has introduced a number of platforms better suited to handling these
+tasks - such as GitHub Actions. We should look to re-platform these workloads to take
+advantage of these platforms, and save cost by eliminating the need for centralised Hybrid
+Worker infrastructure.
+Target State
+gle automation account job to GitHub
+GitHub Actions has been identified as an alternative for a large number of workloads
+currently running on our Hybrid Workers.
+Initial migration testing was completed as per 
+. Findings from this testing have been distilled into
+the following requirements. 
+IST-76037: Test Powershell migration of sin
+DONE
+GitHub
+Authentication
+Authentication through to Azure will be required to allow interaction with Azure resources
+from workflows.
+Previously, authentication was handled via a helper function within the Cloud Ops PowerShell
+module. This allowed for authentication to both Azure and MS-Graph with a single function
+call.
+OIDC is the preferred method of authenticating Service Principles against Azure.
+This lowers operational overhead by not requiring rotating certificates.
+Authentication to both Azure and MS Graph should be completed outside of/before
+the script a given workflow is running to ensure a consistent environment.
+Modules
+Caching
+Given the Hybrid Workers are running under two VMs, modules are installed as usual without
+the requirement to re-install them for every execution.
+Commonly used modules should be cached between workflow runs. Some jobs will be
+running frequently (every 15 minutes in one case), making any additional performance
+gains beneficial.
+Custom Modules
+Within the Cloud Ops team, we use a set of custom PowerShell modules for a range of
+tasks. We need to ensure custom modules can be easy developed and taken advantage of
+within workloads.
+While we do not need to be able to pull modules from other GitHub repos, the folder
+structure should allow for modules to be kept away from workload scripts. These
+modules should be easily importable from workload scripts that require them.
+Scheduling
+Many jobs within Automation Accounts are configured to run on a schedule. While this
+functionality is natively a part of GitHub actions, we need to ensure getting jobs running on a
+schedule is a trivial task.
+Taking advantage of re-usable/callable workflows may be the best approach here to
+abstract away from common Az PowerShell tasks (authentication, module loading,
+etc).
+The re-usable workflow should be capable of both being called from a scheduled
+run, and manual trigger.
+Options should be provided as parameters when calling the re-usable workflow. At a
+minimum - these should include:
+Authenticate to Azure?
+Authenticate to MS Graph?
+Script Location
+Monitoring and Alerting
+Some fairly critical workloads will be running under this solution. We will need to ensure
+alerting is properly configured to notify appropriate teams of any issues.
+Workflow failures need to report through to ServiceNow via an incident. 
+E-Mail alerting should also be available as an option.
+RBAC
+An appropriate RBAC model will need to be configured. An established pattern already exists
+for this across our GitHub environment.
+Basic Git and Actions functionality should be available to an entire team.
+Repo settings (such as secrets, environments, etc) should be restricted to team
+admins
