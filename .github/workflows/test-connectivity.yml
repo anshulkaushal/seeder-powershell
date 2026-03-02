@@ -1,0 +1,28 @@
+# Test workflow: verify Azure and MS Graph connectivity
+# Run manually or on schedule to validate auth and modules
+name: Test Connectivity
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_azure:
+        description: 'Test Azure connectivity'
+        required: false
+        default: true
+        type: boolean
+      test_ms_graph:
+        description: 'Test Microsoft Graph connectivity'
+        required: false
+        default: true
+        type: boolean
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6am UTC
+
+jobs:
+  test:
+    uses: ./.github/workflows/run-powershell-workload.yml
+    with:
+      authenticate_to_azure: ${{ inputs.test_azure != false }}
+      authenticate_to_ms_graph: ${{ inputs.test_ms_graph != false }}
+      script_location: scripts/Test-Connectivity.ps1
+    secrets: inherit

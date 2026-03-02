@@ -1,0 +1,33 @@
+# Example: scheduled workload
+# Runs a script on a schedule (every hour) and supports manual trigger
+name: Example Scheduled Workload
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Script to run'
+        required: false
+        default: 'scripts/Test-Basic.ps1'
+        type: string
+      use_azure:
+        description: 'Authenticate to Azure'
+        required: false
+        default: false
+        type: boolean
+      use_graph:
+        description: 'Authenticate to MS Graph'
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: '0 * * * *'  # Every hour
+
+jobs:
+  run:
+    uses: ./.github/workflows/run-powershell-workload.yml
+    with:
+      authenticate_to_azure: ${{ github.event.inputs.use_azure == 'true' }}
+      authenticate_to_ms_graph: ${{ github.event.inputs.use_graph == 'true' }}
+      script_location: ${{ github.event.inputs.script || 'scripts/Test-Basic.ps1' }}
+    secrets: inherit

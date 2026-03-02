@@ -1,0 +1,15 @@
+# Test Basic - no Azure/Graph auth required
+# Use to validate workflow structure and PowerShell before configuring secrets
+name: Test Basic
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    uses: ./.github/workflows/run-powershell-workload.yml
+    with:
+      authenticate_to_azure: false
+      authenticate_to_ms_graph: false
+      script_location: scripts/Test-Basic.ps1
+    secrets: inherit

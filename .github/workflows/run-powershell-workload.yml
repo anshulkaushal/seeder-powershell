@@ -1,0 +1,86 @@
+# Reusable workflow: run a PowerShell workload with optional Azure and MS Graph auth
+# Call from scheduled or manual workflows
+name: Run PowerShell Workload
+
+on:
+  workflow_call:
+    inputs:
+      authenticate_to_azure:
+        description: 'Authenticate to Azure (OIDC)'
+        required: false
+        default: true
+        type: boolean
+      authenticate_to_ms_graph:
+        description: 'Authenticate to Microsoft Graph (OIDC)'
+        required: false
+        default: false
+        type: boolean
+      script_location:
+        description: 'Path to PowerShell script (relative to repo root)'
+        required: true
+        type: string
+      subscription_id:
+        description: 'Azure subscription ID (optional override)'
+        required: false
+        type: string
+
+jobs:
+  run-workload:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Az module
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/powershell/Modules/Az
+          key: az-module-${{ runner.os }}-${{ hashFiles('**/requirements.psd1') }}
+          restore-keys: az-module-${{ runner.os }}-
+
+      - name: Cache Microsoft.Graph module
+        if: ${{ inputs.authenticate_to_ms_graph }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/powershell/Modules/Microsoft.Graph
+          key: msgraph-module-${{ runner.os }}-${{ hashFiles('**/requirements.psd1') }}
+          restore-keys: msgraph-module-${{ runner.os }}-
+
+      - name: Install Az module
+        if: ${{ inputs.authenticate_to_azure }}
+        run: |
+          pwsh -Command "if (-not (Get-Module -ListAvailable Az.Accounts)) { Install-Module Az -Scope CurrentUser -Force }"
+
+      - name: Install Microsoft.Graph module
+        if: ${{ inputs.authenticate_to_ms_graph }}
+        run: |
+          pwsh -Command "if (-not (Get-Module -ListAvailable Microsoft.Graph.Authentication)) { Install-Module Microsoft.Graph -Scope CurrentUser -Force }"
+
+      - name: Authenticate to Azure
+        if: ${{ inputs.authenticate_to_azure }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ inputs.subscription_id || secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Authenticate to Microsoft Graph
+        if: ${{ inputs.authenticate_to_ms_graph }}
+        run: |
+          pwsh -File .github/scripts/Connect-MsGraphOIDC.ps1
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          MSGRAPH_CLIENT_ID: ${{ secrets.MSGRAPH_CLIENT_ID || secrets.AZURE_CLIENT_ID }}
+          MSGRAPH_TENANT_ID: ${{ secrets.MSGRAPH_TENANT_ID || secrets.AZURE_TENANT_ID }}
+
+      - name: Set module path for custom modules
+        run: |
+          echo "MODULE_PATH=${{ github.workspace }}/modules" >> $GITHUB_ENV
+
+      - name: Run workload script
+        run: |
+          pwsh -File ${{ github.workspace }}/${{ inputs.script_location }}
