@@ -20,8 +20,8 @@ on:
         required: false
         default: false
         type: boolean
-  schedule:
-    - cron: '0 * * * *'  # Every hour
+  #schedule:
+  #  - cron: '0 * * * *'  # Every hour
 
 jobs:
   run:
